@@ -1,12 +1,15 @@
 import onnxruntime as ort
 import onnx
 from PIL import Image
+from PIL import ImageDraw
+from PIL import ImageFont
 import numpy as np
 import time
 
 def load_image_and_preprocess(image_path):
     # Load the image
     image = Image.open(image_path)
+    orig_w, orig_h = image.size
 
     # Resize the image to the required size (416x416)
     resized_image = image.resize((416, 416))
@@ -23,13 +26,9 @@ def load_image_and_preprocess(image_path):
     input_tensor = np.transpose(image_array, (2, 0, 1))
     input_tensor = np.expand_dims(input_tensor, axis=0)
 
-    return input_tensor
+    return input_tensor, orig_w, orig_h
 
-def process_outputs(outputs, image_width=416, image_height=416, threshold=0.1):
-    # Extract the boxes and confidence scores from the outputs
-    boxes = outputs[0][0]
-    confs = outputs[1][0]
-
+def process_outputs(boxes, confs, image_width=416, image_height=416, threshold=0.1):
     # Iterate over boxes and confidences
     for i, box in enumerate(boxes):
         # Extract the confidence score
@@ -46,6 +45,39 @@ def process_outputs(outputs, image_width=416, image_height=416, threshold=0.1):
 
             # Print the adjusted bounding box and its confidence score
             print(f"Box: {x_min_pixel}, {y_min_pixel}, {x_max_pixel}, {y_max_pixel}, Confidence: {conf}")
+
+def draw_boxes(image_path, output_path, boxes, confidences):
+    # Load the image
+    image = Image.open(image_path)
+    draw = ImageDraw.Draw(image)
+
+    # Define font for confidence score (optional, default font will be used if not specified)
+    try:
+        font = ImageFont.truetype("arial.ttf", 15)
+    except IOError:
+        font = ImageFont.load_default()
+
+    # Iterate over the bounding boxes and confidences
+    for box, confidence in zip(boxes, confidences):
+        confidence = confidence[0]
+        if confidence < 0.1: continue
+        # Scale the bounding box back to the original image size
+        x_min, y_min, x_max, y_max = box[0]
+        x_min *= image.width
+        y_min *= image.height
+        x_max *= image.width
+        y_max *= image.height
+
+        # Draw the bounding box
+        draw.rectangle([x_min, y_min, x_max, y_max], outline="red", width=2)
+
+        # Draw the confidence score
+        score_text = f"{confidence:.2f}"
+        draw.text((x_min, y_min), score_text, fill="red", font=font)
+
+    # Save or display the image
+    image.save(output_path)
+    image.show()
 
 # Load the model and create InferenceSession
 model_path = "./model-weights-5a6b1be1fa.onnx"
@@ -69,9 +101,11 @@ for output in model.graph.output:
     # Data type of the input tensor
     print("Data type:", output.type.tensor_type.elem_type)
 
+# Create an inference session
 session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
+
 # Load and preprocess the input image inputTensor
-inputTensor = load_image_and_preprocess("test.png")
+inputTensor,orig_w,orig_h = load_image_and_preprocess("test.png")
 
 # Run inference
 start_time = time.time()
@@ -80,4 +114,8 @@ end_time = time.time()
 duration_time = (end_time - start_time)*1000
 print("Running time in ms: ", duration_time)
 
-process_outputs(outputs)
+boxes = outputs[0][0]
+confs = outputs[1][0]
+process_outputs(boxes,confs,image_width=orig_w,image_height=orig_h)
+
+draw_boxes("test.png","test_processed.png",boxes,confs)
