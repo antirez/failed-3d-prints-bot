@@ -4,7 +4,7 @@ from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 import numpy as np
-import time
+import time, sys
 
 def load_image_and_preprocess(image_path):
     # Load the image
@@ -46,7 +46,7 @@ def process_outputs(boxes, confs, image_width=416, image_height=416, threshold=0
             # Print the adjusted bounding box and its confidence score
             print(f"Box: {x_min_pixel}, {y_min_pixel}, {x_max_pixel}, {y_max_pixel}, Confidence: {conf}")
 
-def draw_boxes(image_path, output_path, boxes, confidences):
+def draw_boxes(image_path, output_path, boxes, confidences, threshold=0.1):
     # Load the image
     image = Image.open(image_path)
     draw = ImageDraw.Draw(image)
@@ -60,7 +60,7 @@ def draw_boxes(image_path, output_path, boxes, confidences):
     # Iterate over the bounding boxes and confidences
     for box, confidence in zip(boxes, confidences):
         confidence = confidence[0]
-        if confidence < 0.1: continue
+        if confidence < threshold: continue
         # Scale the bounding box back to the original image size
         x_min, y_min, x_max, y_max = box[0]
         x_min *= image.width
@@ -101,11 +101,21 @@ for output in model.graph.output:
     # Data type of the input tensor
     print("Data type:", output.type.tensor_type.elem_type)
 
+# Calculate the total number of parameters
+total_params = 0
+for initializer in model.graph.initializer:
+    # Each initializer is a tensor containing parameters for a layer
+    params = 1
+    for dim in initializer.dims:
+        params *= dim
+    total_params += params
+print("Total number of parameters:", total_params)
+
 # Create an inference session
 session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
 
 # Load and preprocess the input image inputTensor
-inputTensor,orig_w,orig_h = load_image_and_preprocess("test.png")
+inputTensor,orig_w,orig_h = load_image_and_preprocess(sys.argv[1])
 
 # Run inference
 start_time = time.time()
@@ -116,6 +126,6 @@ print("Running time in ms: ", duration_time)
 
 boxes = outputs[0][0]
 confs = outputs[1][0]
-process_outputs(boxes,confs,image_width=orig_w,image_height=orig_h)
+process_outputs(boxes,confs,image_width=orig_w,image_height=orig_h,threshold=0.01)
 
-draw_boxes("test.png","test_processed.png",boxes,confs)
+draw_boxes(sys.argv[1],"test_processed.png",boxes,confs,threshold=0.01)
