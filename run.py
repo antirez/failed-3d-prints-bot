@@ -76,7 +76,7 @@ def draw_boxes(image_path, output_path, boxes, confidences, threshold=0.1):
 
     # Save or display the image
     image.save(output_path)
-    image.show()
+    # image.show()
 
 def show_model_info(model_path):
     import onnx
@@ -107,22 +107,31 @@ def show_model_info(model_path):
         total_params += params
     print("Total number of parameters:", total_params)
 
-# Load the model and create InferenceSession
-model_path = "./model-weights-5a6b1be1fa.onnx"
-#show_model_info(model_path)
-session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
+def fetch_and_evaluate_image(inference_session,in_image_path,out_image_path):
+    # Load and preprocess the input image inputTensor
+    inputTensor,orig_w,orig_h = image_to_tensor(in_image_path)
 
-# Load and preprocess the input image inputTensor
-inputTensor,orig_w,orig_h = image_to_tensor(sys.argv[1])
+    # Run inference
+    start_time = time.time()
+    outputs = inference_session.run(None, {"input": inputTensor})
+    end_time = time.time()
+    duration_time = (end_time - start_time)*1000
+    print("Running time in ms: ", duration_time)
 
-# Run inference
-start_time = time.time()
-outputs = session.run(None, {"input": inputTensor})
-end_time = time.time()
-duration_time = (end_time - start_time)*1000
-print("Running time in ms: ", duration_time)
+    boxes = outputs[0][0]
+    confs = outputs[1][0]
+    show_matching_boxes(boxes,confs,image_width=orig_w,image_height=orig_h,threshold=0.01)
+    draw_boxes(sys.argv[1],out_image_path,boxes,confs,threshold=0.01)
 
-boxes = outputs[0][0]
-confs = outputs[1][0]
-show_matching_boxes(boxes,confs,image_width=orig_w,image_height=orig_h,threshold=0.01)
-draw_boxes(sys.argv[1],"test_processed.png",boxes,confs,threshold=0.01)
+# Main loop: fetch image, run the neural network on it, store the processed
+# image and the cumulative score.
+def run():
+    # Load the model and create InferenceSession
+    model_path = "./model-weights-5a6b1be1fa.onnx"
+    #show_model_info(model_path)
+    session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
+    while True:
+        fetch_and_evaluate_image(session,sys.argv[1],"processed.png")
+        time.sleep(5)
+
+run()
