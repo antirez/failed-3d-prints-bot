@@ -1,12 +1,11 @@
 import onnxruntime as ort
-import onnx
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 import numpy as np
 import time, sys
 
-def load_image_and_preprocess(image_path):
+def image_to_tensor(image_path):
     # Load the image
     image = Image.open(image_path)
     orig_w, orig_h = image.size
@@ -28,7 +27,7 @@ def load_image_and_preprocess(image_path):
 
     return input_tensor, orig_w, orig_h
 
-def process_outputs(boxes, confs, image_width=416, image_height=416, threshold=0.1):
+def show_matching_boxes(boxes, confs, image_width=416, image_height=416, threshold=0.1):
     # Iterate over boxes and confidences
     for i, box in enumerate(boxes):
         # Extract the confidence score
@@ -79,43 +78,42 @@ def draw_boxes(image_path, output_path, boxes, confidences, threshold=0.1):
     image.save(output_path)
     image.show()
 
+def show_model_info(model_path):
+    import onnx
+    model = onnx.load(model_path)
+    print("Model Inputs:")
+    for input in model.graph.input:
+        print("  Name:", input.name)
+        # The shape of the input tensor
+        print("  Shape:", [dim.dim_value for dim in input.type.tensor_type.shape.dim])
+        # Data type of the input tensor
+        print("  Data type:", input.type.tensor_type.elem_type)
+
+    print("Model Outputs:")
+    for output in model.graph.output:
+        print("  Name:", output.name)
+        # The shape of the input tensor
+        print("  Shape:", [dim.dim_value for dim in output.type.tensor_type.shape.dim])
+        # Data type of the input tensor
+        print("  Data type:", output.type.tensor_type.elem_type)
+
+    # Calculate the total number of parameters
+    total_params = 0
+    for initializer in model.graph.initializer:
+        # Each initializer is a tensor containing parameters for a layer
+        params = 1
+        for dim in initializer.dims:
+            params *= dim
+        total_params += params
+    print("Total number of parameters:", total_params)
+
 # Load the model and create InferenceSession
 model_path = "./model-weights-5a6b1be1fa.onnx"
-
-# Print details about the inputs
-model = onnx.load(model_path)
-print("Model Inputs:")
-for input in model.graph.input:
-    print("Name:", input.name)
-    # The shape of the input tensor
-    print("Shape:", [dim.dim_value for dim in input.type.tensor_type.shape.dim])
-    # Data type of the input tensor
-    print("Data type:", input.type.tensor_type.elem_type)
-
-print("\n")
-print("Model Outputs:")
-for output in model.graph.output:
-    print("Name:", output.name)
-    # The shape of the input tensor
-    print("Shape:", [dim.dim_value for dim in output.type.tensor_type.shape.dim])
-    # Data type of the input tensor
-    print("Data type:", output.type.tensor_type.elem_type)
-
-# Calculate the total number of parameters
-total_params = 0
-for initializer in model.graph.initializer:
-    # Each initializer is a tensor containing parameters for a layer
-    params = 1
-    for dim in initializer.dims:
-        params *= dim
-    total_params += params
-print("Total number of parameters:", total_params)
-
-# Create an inference session
+#show_model_info(model_path)
 session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
 
 # Load and preprocess the input image inputTensor
-inputTensor,orig_w,orig_h = load_image_and_preprocess(sys.argv[1])
+inputTensor,orig_w,orig_h = image_to_tensor(sys.argv[1])
 
 # Run inference
 start_time = time.time()
@@ -126,6 +124,5 @@ print("Running time in ms: ", duration_time)
 
 boxes = outputs[0][0]
 confs = outputs[1][0]
-process_outputs(boxes,confs,image_width=orig_w,image_height=orig_h,threshold=0.01)
-
+show_matching_boxes(boxes,confs,image_width=orig_w,image_height=orig_h,threshold=0.01)
 draw_boxes(sys.argv[1],"test_processed.png",boxes,confs,threshold=0.01)
