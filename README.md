@@ -37,14 +37,15 @@ The Telegram bot is implemented in C.
 
 To build the bot:
 
-* Install the sqlite3 library.
-* Enter the `bot` directory, compile the bot with `make` and move it into the `detection` library where there is the Python script. They need to stay in the same directory.
+* Install the sqlite3 library (Linux package name sqlite3-dev).
+* Install the libcurl-dev library (Linux pacakge name libcurl4-openssl-dev or similar).
+* Enter the `bot` directory, compile the bot with `make` and move the binary `mybot` into the `detection` library where there is the Python script. They need to stay in the same directory.
 
 Configuring the bot:
 
 1. Create your bot using the Telegram [@BotFather](https://t.me/botfather).
 2. After obtaining your bot API key, store it into a file called `apikey.txt` inside the bot working directory. Alternatively you can use the `--apikey` command line argument to provide your Telegram API key.
-4. Run the bot inside the detector dir `cp mybot ../detector; cd ../detector; ./mybot`.
+4. Run the bot inside the detector dir with `./mybot`.
 5. Add the bot to your Telegram channel if you want it to say in a group. Make the bot admin, otherwise it can't receive group messages.
 6. Talk with the bot with a private message or writing to the group you put the bot into, and set it as the place where you want to receive the failure images by sending the following message: `!target`.
 7. Every time you want to receive the current image of your print, just write `!cam`. Images of failures are sent automatically every time the detected score is higher than a given threshold.
