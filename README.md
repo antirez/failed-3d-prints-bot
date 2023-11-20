@@ -4,11 +4,7 @@ It is composed of two parts:
 * A Python program that uses a pre-trained neural network in ONNX format, originating from the [Obico server project](https://github.com/TheSpaghettiDetective/obico-server/tree/release/ml_api/model). This program calls a user-defined command to capture an image, runs the NN to detect failures, stores a `current_score.txt` file with the maximum detection confidence of an error (a float number, from 0 to 1, where numbers > ~0.1 are hints that something is going wrong). The Python script also writes a `processed.png` file where the box with maximum failure confidence is outlined in red.
 * A Telegram bot written in C, that periodically checks the `current_score.txt` file, and if it is over a given threshold it sends the image `processed.png` to the configured user / group target.
 
-## Installation
-
-Enter the `bot` directory, compile the bot with `make` and move it into the `detection` library where there is the Python script. They need to stay in the same directory.
-
-Run the bot just with `./mybot`
+## Installation of the detection program
 
 Run the detection Python program with:
 
@@ -25,7 +21,14 @@ python3 ./run.py --single test.png
 The image `test.png` is included in this software distribution.
 The program will create a `processed.png` file with a red box where the failure was detected. The image is also annotated with the current date and time.
 
-## Configuring the Telegram bot
+## Installing the Telegram bot
+
+Building the bot:
+
+* Install sqlite3 library.
+* Enter the `bot` directory, compile the bot with `make` and move it into the `detection` library where there is the Python script. They need to stay in the same directory.
+
+Configuring the bot:
 
 1. Create your bot using the Telegram [@BotFather](https://t.me/botfather).
 2. After obtaining your bot API key, store it into a file called `apikey.txt` inside the bot working directory. Alternatively you can use the `--apikey` command line argument to provide your Telegram API key.

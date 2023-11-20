@@ -1,0 +1,7 @@
+mybot
+*.dSYM
+apikey.txt
+mybot.sqlite
+*.png
+*.jpg
+*.jpeg
