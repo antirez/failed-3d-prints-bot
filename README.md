@@ -6,37 +6,47 @@ It is composed of two parts:
 
 ## Installation of the detection program
 
+Download the neural network weights using the `download_model.sh` script.
+
+    ./download_model.sh
+
 Run the detection Python program with:
 
-python3 ./run.py --fetch-script image.jpg raspistill -o image.jpg
+    python3 ./run.py --fetch-script image.jpg raspistill -o image.jpg
 
 Where the first argument `image.jpg` is the name of the image that will be produced by the command that follows, and the next arguments are the command to execute to actually produce the image, in this case `raspistill -o image.jpg`, that is good if you are using a Raspberry Pi with the Pi CAM module.
 
-In this mode, the Python program will run forver fetching images and running the neural network again and again. There will be a 5 seconds pause betewen executions.
+You can use any command line to produce the image. Even `scp` if you want to transfer it from another host that is actually producing the images.
 
-You can try the Python script with a single example image if you wish:
+When executed with `--fetch-script` as in the above example, the Python program will run forver fetching images and running the neural network again and again. There will be a 5 seconds pause betewen executions, just to let the computer breath and avoid overheating (especially if you are using a Raspberry Pi that is not dissipating the heat efficiently).
 
-python3 ./run.py --single test.png
+It is possible to try the Python script with a single example image if you wish:
+
+    python3 ./run.py --single test.png
 
 The image `test.png` is included in this software distribution.
 The program will create a `processed.png` file with a red box where the failure was detected. The image is also annotated with the current date and time.
 
 ## Installing the Telegram bot
 
-Building the bot:
+The Telegram bot is implemented in C.
 
-* Install sqlite3 library.
+To build the bot:
+
+* Install the sqlite3 library.
 * Enter the `bot` directory, compile the bot with `make` and move it into the `detection` library where there is the Python script. They need to stay in the same directory.
 
 Configuring the bot:
 
 1. Create your bot using the Telegram [@BotFather](https://t.me/botfather).
 2. After obtaining your bot API key, store it into a file called `apikey.txt` inside the bot working directory. Alternatively you can use the `--apikey` command line argument to provide your Telegram API key.
-4. Run the bot with `./mybot`.
-5. Add the bot to your Telegram channel if you want it to say in a group.
+4. Run the bot inside the detector dir `cp mybot ../detector; cd ../detector; ./mybot`.
+5. Add the bot to your Telegram channel if you want it to say in a group. Make the bot admin, otherwise it can't receive group messages.
 6. Talk with the bot with a private message or writing to the group you put the bot into, and set it as the place where you want to receive the failure images by sending the following message: `!target`.
-7. Every time you want to receive the current image of your print, just write `!cam`.
+7. Every time you want to receive the current image of your print, just write `!cam`. Images of failures are sent automatically every time the detected score is higher than a given threshold.
 8. Once a target for the images was set, it will not accept new `!target` commands, so if you want it to forget the old target and set a new one you need to send a private message to the bot with the `!forget` text from the same user that initially set the target. Then you can use `!target` again.
+
+**WARNING:** The bot needs to run with the detector folder as current folder, so run it inside `screen` or whatever you want, and keep it running there. The simplest way to do this is to just copy the `mybot` executable in the detector folder, and that's it.
 
 ## Useful information
 
