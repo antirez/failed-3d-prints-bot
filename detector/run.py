@@ -3,7 +3,7 @@ from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 import numpy as np
-import time, sys, subprocess, datetime
+import time, sys, subprocess, datetime, os
 
 def image_to_tensor(image_path):
     # Load the image
@@ -89,7 +89,8 @@ def draw_boxes(image_path, output_path, boxes, confidences, threshold=0.1):
     draw.text((20,20), datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), fill="green", font=font)
 
     # Save or display the image
-    image.save(output_path)
+    image.save("tmp_"+output_path)
+    os.replace("tmp_"+output_path, output_path)
     # image.show()
 
 def show_model_info(model_path):
@@ -170,6 +171,9 @@ def run(fetched_filename,fetch_image_command):
             print("Processing image...")
             max_score = evaluate_image(session,fetched_filename,"processed.png")
             print("Max score: ", max_score)
+            f = open("current_score.txt","w")
+            f.write(str(max_score))
+            f.close()
         time.sleep(5)
 
 def print_help():
