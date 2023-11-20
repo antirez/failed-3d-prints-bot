@@ -14,7 +14,14 @@ Install onnxruntime, pillow and numpy (more or less any version should work, we 
 
     pip install onnxruntime pillow numpy
 
-Run the detection Python program with:
+To test if everything is ok, it is possible to try the Python script with a single example image, for a single run:
+
+    python3 ./run.py --single test.png
+
+The image `test.png` is included in this software distribution.
+The program will create a `processed.png` file with a red box where the failure was detected. The image is also annotated with the current date and time.
+
+Normally you want to run the detection Python program in a loop and a way to get new images from the cam monitoring your 3D printer. To do so, use a command line like the following:
 
     python3 ./run.py --fetch-script image.jpg raspistill -o image.jpg
 
@@ -23,13 +30,6 @@ Where the first argument `image.jpg` is the name of the image that will be produ
 You can use any command line to produce the image. Even `scp` if you want to transfer it from another host that is actually producing the images.
 
 When executed with `--fetch-script` as in the above example, the Python program will run forver fetching images and running the neural network again and again. There will be a 5 seconds pause betewen executions, just to let the computer breath and avoid overheating (especially if you are using a Raspberry Pi that is not dissipating the heat efficiently).
-
-It is possible to try the Python script with a single example image if you wish:
-
-    python3 ./run.py --single test.png
-
-The image `test.png` is included in this software distribution.
-The program will create a `processed.png` file with a red box where the failure was detected. The image is also annotated with the current date and time.
 
 ## Installing the Telegram bot
 
