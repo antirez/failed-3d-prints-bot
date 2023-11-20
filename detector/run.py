@@ -3,7 +3,7 @@ from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 import numpy as np
-import time, sys
+import time, sys, subprocess, datetime
 
 def image_to_tensor(image_path):
     # Load the image
@@ -52,7 +52,7 @@ def draw_boxes(image_path, output_path, boxes, confidences, threshold=0.1):
 
     # Define font for confidence score (optional, default font will be used if not specified)
     try:
-        font = ImageFont.truetype("arial.ttf", 15)
+        font = ImageFont.truetype("./bedstead.otf", 18)
     except IOError:
         font = ImageFont.load_default()
 
@@ -73,6 +73,9 @@ def draw_boxes(image_path, output_path, boxes, confidences, threshold=0.1):
         # Draw the confidence score
         score_text = f"{confidence:.2f}"
         draw.text((x_min, y_min), score_text, fill="red", font=font)
+
+    # Write the current time as well.
+    draw.text((20,20), datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), fill="green", font=font)
 
     # Save or display the image
     image.save(output_path)
@@ -107,7 +110,10 @@ def show_model_info(model_path):
         total_params += params
     print("Total number of parameters:", total_params)
 
-def fetch_and_evaluate_image(inference_session,in_image_path,out_image_path):
+# Evaluate the specified image, return the max score of the
+# different identified boxes of failure and as side effect create a new
+# image with the highlighted boxes.
+def evaluate_image(inference_session,in_image_path,out_image_path):
     # Load and preprocess the input image inputTensor
     inputTensor,orig_w,orig_h = image_to_tensor(in_image_path)
 
@@ -116,22 +122,68 @@ def fetch_and_evaluate_image(inference_session,in_image_path,out_image_path):
     outputs = inference_session.run(None, {"input": inputTensor})
     end_time = time.time()
     duration_time = (end_time - start_time)*1000
-    print("Running time in ms: ", duration_time)
+    print("Neural network inference milliseconds runtime: ", duration_time)
 
     boxes = outputs[0][0]
     confs = outputs[1][0]
     show_matching_boxes(boxes,confs,image_width=orig_w,image_height=orig_h,threshold=0.01)
-    draw_boxes(sys.argv[1],out_image_path,boxes,confs,threshold=0.01)
+    draw_boxes(in_image_path,out_image_path,boxes,confs,threshold=0.01)
+    max_score = 0
+    for item in confs:
+        if item[0] > max_score: max_score = item[0]
+    return max_score
+
+def process_single(image_path):
+    model_path = "./model-weights-5a6b1be1fa.onnx"
+    session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
+    max_score = evaluate_image(session,image_path,"processed.png")
+    print("Max score: ", max_score)
 
 # Main loop: fetch image, run the neural network on it, store the processed
 # image and the cumulative score.
-def run():
-    # Load the model and create InferenceSession
+#
+# fetch_image_command should be an array of arguments that the function
+# will execute by calling subprocess.
+def run(fetched_filename,fetch_image_command):
     model_path = "./model-weights-5a6b1be1fa.onnx"
     #show_model_info(model_path)
     session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
     while True:
-        fetch_and_evaluate_image(session,sys.argv[1],"processed.png")
+        # Fetch the image using the user provided command.
+        print("Executing ", fetch_image_command)
+        process = subprocess.run(fetch_image_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        error_code = process.returncode
+        if error_code != 0:
+            print("Warning: Fetch image script exited with an error: ", error_code)
+        else:
+            print("Processing image...")
+            max_score = evaluate_image(session,fetched_filename,"processed.png")
+            print("Max score: ", max_score)
         time.sleep(5)
 
-run()
+def print_help():
+    help_text = """
+    Usage:
+    --single: Process the single image specified.
+    --fetch-script [args]: Fetch image as speciifed, process it, in a loop.
+    --help: Show this help message.
+    """
+    print(help_text)
+
+def main():
+    if len(sys.argv) > 1:
+        if sys.argv[1] == '--single':
+            process_single(sys.argv[2])
+        elif sys.argv[1] == '--fetch-script':
+            run(sys.argv[2],sys.argv[3:])
+        elif sys.argv[1] == '--help':
+            print_help()
+        else:
+            print("Unknown option. Showing help:")
+            print_help()
+    else:
+        print("No options provided. Showing help:")
+        print_help()
+
+if __name__ == "__main__":
+    main()
