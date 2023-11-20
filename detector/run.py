@@ -148,7 +148,7 @@ def evaluate_image(inference_session,in_image_path,out_image_path):
 def process_single(image_path):
     model_path = "./model-weights-5a6b1be1fa.onnx"
     session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
-    max_score = evaluate_image(session,image_path,"processed.png")
+    max_score = evaluate_image(session,image_path,"processed.jpg")
     print("Max score: ", max_score)
 
 # Main loop: fetch image, run the neural network on it, store the processed
@@ -169,7 +169,7 @@ def run(fetched_filename,fetch_image_command):
             print("Warning: Fetch image script exited with an error: ", error_code)
         else:
             print("Processing image...")
-            max_score = evaluate_image(session,fetched_filename,"processed.png")
+            max_score = evaluate_image(session,fetched_filename,"processed.jpg")
             print("Max score: ", max_score)
             f = open("current_score.txt","w")
             f.write(str(max_score))

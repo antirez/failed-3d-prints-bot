@@ -61,13 +61,13 @@ void handleRequest(int type, int64_t from, int64_t target, int64_t message_id, s
     if (!set_target || target != set_target) return;
 
     if (argc == 1 && !strcasecmp(argv[0],"!cam")) {
-        FILE *fp = fopen("processed.png","r");
+        FILE *fp = fopen("processed.jpg","r");
         if (fp == NULL) {
             botSendMessage(target,"No cam image available.",message_id);
             return;
         }
         fclose(fp);
-        botSendImage(target,"processed.png");
+        botSendImage(target,"processed.jpg");
     }
 }
 
@@ -109,7 +109,7 @@ void cron(sqlite3 *dbhandle) {
     fclose(fp);
 
     if (current_score > sent_score && current_score > SCORE_THRESHOLD) {
-        botSendImage(target, "processed.png");
+        botSendImage(target, "processed.jpg");
         sent_score = current_score;
         low_score_count = 0;
     } else if (current_score < sent_score) {
