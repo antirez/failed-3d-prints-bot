@@ -10,6 +10,10 @@ Download the neural network weights using the `download_model.sh` script.
 
     ./download_model.sh
 
+Install onnxruntime, pillow and numpy (more or less any version should work, we use basic things):
+
+    pip install onnxruntime pillow numpy
+
 Run the detection Python program with:
 
     python3 ./run.py --fetch-script image.jpg raspistill -o image.jpg
