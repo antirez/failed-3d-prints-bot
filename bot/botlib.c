@@ -351,6 +351,9 @@ int botSendImage(int64_t target, char *filename) {
             "https://api.telegram.org/bot%s/sendPhoto", Bot.apikey);
         curl_easy_setopt(curl, CURLOPT_URL, url);
         curl_easy_setopt(curl, CURLOPT_HTTPPOST, formpost);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, makeHTTPGETCallWriter);
+        sds body = sdsempty(); // Accumulate the reply here.
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 1L);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15);
@@ -358,15 +361,21 @@ int botSendImage(int64_t target, char *filename) {
 
         /* Perform the request, res will get the return code */
         res = curl_easy_perform(curl);
-        retval = CURLE_OK ? 1 : 0;
 
         /* Check for errors */
         if (res == CURLE_OK) {
+            retval = 1;
             /* Return 0 if the request worked but returned a 500 code. */
             long code;
             curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
-            if (code == 500) retval = 0;
+            if (code == 500 || code == 400) retval = 0;
+        } else {
+            retval = 0;
         }
+
+        if (retval == 0)
+            printf("sendImage() error from Telegram API: %s\n", body);
+        sdsfree(body);
 
         /* always cleanup */
         curl_easy_cleanup(curl);
@@ -408,30 +417,24 @@ int botSendMessage(int64_t target, sds text, int64_t reply_to) {
     return res;
 }
 
-/* This structure is passed to the thread processing a given user request,
- * it's up to the thread to free it once it is done. */
-typedef struct botRequest {
-    int type;           /* TB_TYPE_PRIVATE, ... */
-    sds request;        /* The request string. */
-    int64_t from;       /* ID of user sending the message. */
-    int64_t target;     /* Target channel/user where to reply. */
-    int64_t id;         /* Message ID. */
-} botRequest;
-
 /* Free the bot request and associated data. */
-void freeBotRequest(botRequest *br) {
+void freeBotRequest(BotRequest *br) {
+    sdsfreesplitres(br->argv,br->argc);
     sdsfree(br->request);
     free(br);
 }
 
 /* Create a bot request object and return it to the caller. */
-botRequest *createBotRequest(void) {
-    botRequest *br = malloc(sizeof(*br));
+BotRequest *createBotRequest(void) {
+    BotRequest *br = malloc(sizeof(*br));
     br->request = NULL;
+    br->argc = 0;
+    br->argv = NULL;
     br->from = 0;
     br->target = 0;
-    br->id = 0;
-    br->type = 0;
+    br->msg_id = 0;
+    br->type = TB_TYPE_UNKNOWN;
+    br->media_type = TB_MEDIA_NONE;
     return br;
 }
 
@@ -477,16 +480,12 @@ void dbClose(void) {
 /* Request handling thread entry point. */
 void *botHandleRequest(void *arg) {
     DbHandle = dbInit(NULL);
-    botRequest *br = arg;
+    BotRequest *br = arg;
 
     /* Parse the request as a command composed of arguments. */
-    int argc;
-    sds *argv = sdssplitargs(br->request,&argc);
-
-    Bot.req_callback(br->type, br->from, br->target, br->id, DbHandle, br->request, argc, argv);
-
+    br->argv = sdssplitargs(br->request,&br->argc);
+    Bot.req_callback(DbHandle,br);
     freeBotRequest(br);
-    sdsfreesplitres(argv,argc);
     dbClose();
     return NULL;
 }
@@ -510,6 +509,11 @@ int64_t botProcessUpdates(int64_t offset, int timeout) {
     sds body = makeGETBotRequest("getUpdates",&res,options,3);
     sdsfree(options[1]);
     sdsfree(options[3]);
+
+    /* If two --debug options are provided, log the whole Telegram
+     * reply here. */
+    if (Bot.debug >= 2)
+        printf("RECEIVED FROM TELEGRAM API:\n%s\n",body);
 
     /* Parse the JSON in order to extract the message info. */
     cJSON *json = cJSON_Parse(body);
@@ -580,12 +584,12 @@ int64_t botProcessUpdates(int64_t offset, int timeout) {
         /* Spawn a thread that will handle the request. */
         botStats.queries++;
         sds request = sdsnew(text->valuestring);
-        botRequest *bt = createBotRequest();
+        BotRequest *bt = createBotRequest();
         bt->type = type;
         bt->request = request;
         bt->from = from;
         bt->target = target;
-        bt->id = message_id;
+        bt->msg_id = message_id;
         pthread_t tid;
         if (pthread_create(&tid,NULL,botHandleRequest,bt) != 0) {
             freeBotRequest(bt);

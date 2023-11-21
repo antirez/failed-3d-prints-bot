@@ -12,45 +12,41 @@
  * For group messages, this function is ONLY called if one of the patterns
  * specified as "triggers" in startBot() matched the message. Otherwise we
  * would spawn threads too often :) */
-void handleRequest(int type, int64_t from, int64_t target, int64_t message_id, sqlite3 *dbhandle, char *request, int argc, sds *argv)
-{
-    UNUSED(type);
-    UNUSED(request);
-
+void handleRequest(sqlite3 *dbhandle, BotRequest *br) {
     int64_t set_target = 0;
+
     sds targetstr = kvGet(dbhandle,"target");
     if (targetstr) {
         set_target = strtoll(targetstr,NULL,0);
         sdsfree(targetstr);
     }
 
-    if (argc == 1 && !strcasecmp(argv[0],"!target")) {
+    if (br->argc == 1 && !strcasecmp(br->argv[0],"!target")) {
         if (set_target) {
-            printf("FROM: %lld\n", from);
-            botSendMessage(target,"A target is already set. Use !forget",message_id);
+            botSendMessage(br->target,"A target is already set. Use !forget",br->msg_id);
             return;
         }
 
         char buf[64];
-        snprintf(buf,sizeof(buf),"%lld",(long long)target);
+        snprintf(buf,sizeof(buf),"%lld",(long long)br->target);
         kvSet(dbhandle,"target",buf,0);
 
         /* We also need to remember who set the target, so we will
          * accept !forget commands only from they. */
-        snprintf(buf,sizeof(buf),"%lld",(long long)from);
+        snprintf(buf,sizeof(buf),"%lld",(long long)br->from);
         kvSet(dbhandle,"owner",buf,0);
-        botSendMessage(target,"Thanks, I'll send failure images here.",message_id);
-    } else if (argc == 1 && !strcasecmp(argv[0],"!forget")) {
+        botSendMessage(br->target,"Thanks, I'll send failure images here.",br->msg_id);
+    } else if (br->argc == 1 && !strcasecmp(br->argv[0],"!forget")) {
         sds ownerstr = kvGet(dbhandle,"owner");
         if (!ownerstr) {
-            botSendMessage(target,"Target was not set yet.",message_id);
+            botSendMessage(br->target,"Target was not set yet.",br->msg_id);
             return;
         }
         int64_t owner = strtoll(ownerstr,NULL,0);
         sdsfree(ownerstr);
 
-        if (owner != from) {
-            botSendMessage(target,"I can only accept .",message_id);
+        if (owner != br->from) {
+            botSendMessage(br->target,"I can only accept .",br->msg_id);
             return;
         }
         kvDel(dbhandle,"target");
@@ -58,22 +54,22 @@ void handleRequest(int type, int64_t from, int64_t target, int64_t message_id, s
     }
 
     /* Accept only commands from set target. */
-    if (!set_target || target != set_target) return;
+    if (!set_target || br->target != set_target) return;
 
-    if (argc == 1 && !strcasecmp(argv[0],"!cam")) {
+    if (br->argc == 1 && !strcasecmp(br->argv[0],"!cam")) {
         FILE *fp = fopen("processed.jpg","r");
         if (fp == NULL) {
-            botSendMessage(target,"No cam image available.",message_id);
+            botSendMessage(br->target,"No cam image available.",br->msg_id);
             return;
         }
         fclose(fp);
-        botSendImage(target,"processed.jpg");
+        botSendImage(br->target,"processed.jpg");
     }
 }
 
 // This is just called every 1 or 2 seconds. */
 #define LOW_SCORE_COUNT_LIMIT 10
-#define SCORE_THRESHOLD 0.05
+#define SCORE_THRESHOLD 0.01
 void cron(sqlite3 *dbhandle) {
     static float sent_score = 0; // Confidence score of last sent image.
     int64_t target;
@@ -108,14 +104,17 @@ void cron(sqlite3 *dbhandle) {
     float current_score = strtod(buf,NULL);
     fclose(fp);
 
-    if (current_score > sent_score && current_score > SCORE_THRESHOLD) {
+    if (current_score > sent_score*1.15 && current_score > SCORE_THRESHOLD) {
+        printf("Sending image with score: %.2f\n", current_score);
         botSendImage(target, "processed.jpg");
         sent_score = current_score;
         low_score_count = 0;
-    } else if (current_score < sent_score) {
+    } else if (current_score < sent_score && current_score < SCORE_THRESHOLD) {
         low_score_count++;
-        if (low_score_count == LOW_SCORE_COUNT_LIMIT) sent_score = 0;
-        printf("Failed print removed from the bed? Reset sent_score to zero.\n");
+        if (low_score_count == LOW_SCORE_COUNT_LIMIT) {
+            sent_score = 0;
+            printf("Failed print removed from the bed? Reset sent_score to zero.\n");
+        }
     }
 }
 

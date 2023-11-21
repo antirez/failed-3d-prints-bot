@@ -11,21 +11,40 @@
 #include "sqlite_wrap.h"
 #include "cJSON.h"
 
-/* Bot callback type. This must be registed when the bot is initialized.
- * Each time the bot receives a command / message matching the list of
- * trigger strings, it starts a thread and calls this callback. */
-typedef void (*TBRequestCallback)(int type, int64_t from, int64_t target, int64_t message_id, sqlite3 *dbhandle, char *request, int argc, sds *argv);
-typedef void (*TBCronCallback)(sqlite3 *dbhandle);
-
 #define TB_FLAGS_NONE 0
 #define TB_FLAGS_IGNORE_BAD_ARG (1<<0)
 
+/* This structure is passed to the thread processing a given user request,
+ * it's up to the thread to free it once it is done. */
+typedef struct BotRequest {
+    int type;           /* TB_TYPE_PRIVATE, ... */
+    sds request;        /* The request string. */
+    int64_t from;       /* ID of user sending the message. */
+    int64_t target;     /* Target channel/user where to reply. */
+    int64_t msg_id;     /* Message ID. */
+    sds *argv;          /* Request split to single words. */
+    int argc;           /* Number of words. */
+    int media_type;     /* TB_MEDIA_* */
+} BotRequest;
+
+/* Bot callback type. This must be registed when the bot is initialized.
+ * Each time the bot receives a command / message matching the list of
+ * trigger strings, it starts a thread and calls this callback. */
+typedef void (*TBRequestCallback)(sqlite3 *dbhandle, BotRequest *br);
+typedef void (*TBCronCallback)(sqlite3 *dbhandle);
+
 /* Type of request used as arugment of the request callback. */
-#define TB_TYPE_UNKNOWN -1
-#define TB_TYPE_PRIVATE 0
-#define TB_TYPE_GROUP 1
-#define TB_TYPE_SUPERGROUP 2
-#define TB_TYPE_CHANNEL 3
+#define TB_TYPE_UNKNOWN 0
+#define TB_TYPE_PRIVATE 1
+#define TB_TYPE_GROUP 2
+#define TB_TYPE_SUPERGROUP 3
+#define TB_TYPE_CHANNEL 4
+
+#define TB_MEDIA_NONE 0
+#define TB_MEDIA_IMAGE 1
+#define TB_MEDIA_AUDIO 2
+#define TB_MEDIA_VOICE 3
+/* ... More ar missing ... */
 
 /* Concatenate this when starting the bot and passing your create
  * DB query for Sqlite database initialization. */
