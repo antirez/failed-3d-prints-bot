@@ -24,7 +24,10 @@ typedef struct BotRequest {
     int64_t msg_id;     /* Message ID. */
     sds *argv;          /* Request split to single words. */
     int argc;           /* Number of words. */
-    int media_type;     /* TB_MEDIA_* */
+    int file_type;      /* TB_FILE_TYPE_* */
+    sds file_id;        /* File ID if a file is present in the message.
+                         * The file format will be given by file_type. */
+    int64_t file_size;  /* Size of the file. */
 } BotRequest;
 
 /* Bot callback type. This must be registed when the bot is initialized.
@@ -40,10 +43,8 @@ typedef void (*TBCronCallback)(sqlite3 *dbhandle);
 #define TB_TYPE_SUPERGROUP 3
 #define TB_TYPE_CHANNEL 4
 
-#define TB_MEDIA_NONE 0
-#define TB_MEDIA_IMAGE 1
-#define TB_MEDIA_AUDIO 2
-#define TB_MEDIA_VOICE 3
+#define TB_FILE_TYPE_NONE 0
+#define TB_FILE_TYPE_VOICE_OGG 1
 /* ... More ar missing ... */
 
 /* Concatenate this when starting the bot and passing your create
@@ -68,8 +69,12 @@ sds makeHTTPGETCall(const char *url, int *resptr);
 
 int startBot(char *createdb_query, int argc, char **argv, int flags, TBRequestCallback req_callback, TBCronCallback cron_callback, char **triggers);
 sds makeGETBotRequest(const char *action, int *resptr, char **optlist, int numopt);
+int botSendMessageAndGetInfo(int64_t target, sds text, int64_t reply_to, int64_t *chat_id, int64_t *message_id);
 int botSendMessage(int64_t target, sds text, int64_t reply_to);
+int botEditMessageText(int64_t chat_id, int message_id, sds text);
 int botSendImage(int64_t target, char *filename);
+int botGetFile(BotRequest *br, const char *target_filename);
+void freeBotRequest(BotRequest *br);
 
 /* Database. */
 int kvSetLen(sqlite3 *dbhandle, const char *key, const char *value, size_t vlen, int64_t expire);
