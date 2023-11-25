@@ -1,3 +1,6 @@
+#define _DEFAULT_SOURCE
+#define _XOPEN_SOURCE 600
+
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
